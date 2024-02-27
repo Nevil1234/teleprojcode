@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potato Plant Disease Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        .upload-btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .upload-btn:hover {
+            background-color: #45a049;
+        }
+        #image-preview {
+            margin-top: 20px;
+            display: none;
+        }
+        #prediction-result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Potato Plant Disease Classifier</h1>
+        <video id="video" width="640" height="480" autoplay style="background-color: grey"></video>
+        <button id="snap" class="upload-btn">Take Photo</button>
+        <canvas id="canvas" width="640" height="480" style="background-color: grey"></canvas>
+        <img id="image-preview" src="#" alt="Uploaded Image" width="300" style="display: none;">
+        <div id="prediction-result"></div>
+    </div>
+
+    <script>
+        var video = document.getElementById('video');
+        var canvas = document.getElementById('canvas');
+        var context = canvas.getContext('2d');
+        var snapButton = document.getElementById('snap');
+        var preview = document.getElementById('image-preview');
+        var resultDiv = document.getElementById('prediction-result');
+
+        function startImageCapture() {
+            setInterval(() => {
+                captureAndUpload();
+            }, 60000); // Capture an image every 1 minute
+        }
+
+        function captureAndUpload() {
+            context.drawImage(video, 0, 0, 640, 480);
+            preview.src = canvas.toDataURL("image/jpeg");
+            preview.style.display = 'block';
+            uploadImage();
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+            video.srcObject = stream;
+            video.play();
+            startImageCapture(); // Start periodic image capture
+        });
+
+        snapButton.addEventListener('click', function() {
+            captureAndUpload();
+        });
+
+        async function uploadImage() {
+            const formData = new FormData();
+            const dataUrl = canvas.toDataURL("image/jpeg");
+            const blobData = dataURItoBlob(dataUrl);
+            formData.append('file', blobData);
+
+            try {
+                const response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.json();
+                console.log('Prediction data:', data);
+                displayPrediction(data);
+            } catch (error) {
+                console.error('Error:', error.message);
+            }
+        }
+
+        function displayPrediction(data) {
+            // Check if data contains the expected properties
+            if (!data || !data.class || !data.confidence || !data.additional_message) {
+                console.error('Prediction data is missing required properties:', data);
+                resultDiv.innerHTML = '<p>Error: Prediction data is missing required properties</p>';
+                return;
+            }
+
+            // Display prediction result
+            resultDiv.innerHTML = `
+                <p><strong>Predicted Class:</strong> ${data.class}</p>
+                <p><strong>Confidence:</strong> ${data.confidence.toFixed(2)}</p>
+                <p>${data.additional_message}</p>
+            `;
+        }
+
+        // Convert data URI to Blob
+        function dataURItoBlob(dataURI) {
+            var byteString = atob(dataURI.split(',')[1]);
+            var ab = new ArrayBuffer(byteString.length);
+            var ia = new Uint8Array(ab);
+            for (var i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: 'image/jpeg' });
+        }
+    </script>
+</body>
+</html>
